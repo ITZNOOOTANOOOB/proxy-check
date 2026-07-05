@@ -58,38 +58,78 @@ def fetch_proxies():
     proxies = {"http": [], "socks5": []}
     country_str = ",".join(COUNTRIES) if COUNTRIES else "all"
     
-    logger.info(f"开始获取代理 | 国家过滤: {country_str if country_str != 'all' else '全部'} | 匿名度: {ANONYMITY}")
-    
-    # ProxyScrape API（支持过滤）
-    base_url = "https://api.proxyscrape.com/v4/free-proxy-list/get"
-    
-    for proto in ["http", "socks5"]:
-        params = {
-            "request": "display_proxies",
-            "proxy_format": "protocolipport",
-            "format": "text",
-            "protocol": proto,
-            "country": country_str,
-            "anonymity": ANONYMITY if proto == "http" else "all",
-            "timeout": 15000,
-            "limit": 1500
-        }
+    logger.info(f"开始从多个来源获取代理 | 国家: {country_str if country_str != 'all' else '全部'}")
+
+    # ==================== 多个来源 ====================
+    sources = [
+        # 1. ProxyScrape（推荐，稳定，支持过滤）
+        {
+            "base": "https://api.proxyscrape.com/v4/free-proxy-list/get",
+            "params": lambda proto: {
+                "request": "display_proxies",
+                "proxy_format": "protocolipport",
+                "format": "text",
+                "protocol": proto,
+                "country": country_str,
+                "anonymity": ANONYMITY if proto == "http" else "all",
+                "timeout": 15000,
+                "limit": 1200
+            }
+        },
+        
+        # 2. Proxifly CDN（速度快，已验证）
+        {
+            "base": "https://cdn.jsdelivr.net/gh/proxifly/free-proxy-list@main/proxies/protocols/http/data.txt",
+            "params": None
+        },
+        {
+            "base": "https://cdn.jsdelivr.net/gh/proxifly/free-proxy-list@main/proxies/protocols/socks5/data.txt",
+            "params": None
+        },
+        
+        # 3. 其他公开列表（可继续添加）
+        "https://raw.githubusercontent.com/iplocate/free-proxy-list/main/protocols/http.txt",
+        "https://raw.githubusercontent.com/iplocate/free-proxy-list/main/protocols/socks5.txt",
+        
+        # 你可以继续添加更多 raw GitHub 或 TXT 链接
+    ]
+
+    for source in sources:
         try:
-            resp = requests.get(base_url, params=params, timeout=20)
-            if resp.status_code == 200:
-                lines = [line.strip() for line in resp.text.splitlines() if line.strip() and ":" in line]
-                proxies[proto if proto == "socks5" else "http"].extend(lines)
-                logger.info(f"获取 {proto.upper()} 代理: {len(lines)} 个")
+            if isinstance(source, dict):   # 有 params 的 API
+                base = source["base"]
+                for proto in ["http", "socks5"]:
+                    if source["params"]:
+                        params = source["params"](proto)
+                        resp = requests.get(base, params=params, timeout=20)
+                    else:
+                        resp = requests.get(base, timeout=20)
+                    
+                    if resp.status_code == 200:
+                        lines = [line.strip() for line in resp.text.splitlines() if line.strip() and ":" in line]
+                        key = "http" if proto == "http" else "socks5"
+                        proxies[key].extend(lines)
+                        logger.info(f"✓ 从 {base[-50:]} 获取 {len(lines)} 个 {proto.upper()}")
+            else:  # 直接 TXT 链接
+                resp = requests.get(source, timeout=20)
+                if resp.status_code == 200:
+                    lines = [line.strip() for line in resp.text.splitlines() if line.strip() and ":" in line]
+                    # 简单区分协议
+                    for line in lines:
+                        if line.endswith(":1080") or ":9050" in line:   # 粗略判断
+                            proxies["socks5"].append(line)
+                        else:
+                            proxies["http"].append(line)
+                    logger.info(f"✓ 从 {source[-40:]} 获取 {len(lines)} 个代理")
         except Exception as e:
-            logger.error(f"获取 {proto} 失败: {e}")
+            logger.warning(f"来源失败 {source}: {e}")
     
     # 去重
     for k in proxies:
         proxies[k] = list(dict.fromkeys(proxies[k]))
     
-    logger.info(f"总原始代理: HTTP={len(proxies['http'])} | SOCKS5={len(proxies['socks5'])}")
+    logger.info(f"多来源获取完成 → HTTP: {len(proxies['http'])} | SOCKS5: {len(proxies['socks5'])}")
     return proxies
-
 # ==================== 验证 ====================
 async def check_proxy(session, proxy_str: str, proxy_type: str):
     try:
