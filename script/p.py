@@ -10,10 +10,11 @@ import os
 TEST_URL = "http://httpbin.org/ip"
 TIMEOUT = 8
 MAX_VALID_PER_TYPE = 300   # 每个协议最多保留数量
+CONCURRENT_LIMIT = 50        # 新增并发控制
 
 # ==================== 国家过滤（可随意扩展） ====================
 # 支持的国家列表（ISO 2位代码），留空表示不过滤
-COUNTRIES = ["US", "GB", "DE", "JP", "KR", "FR", "CA", "AU", "SG", "NL", "SE", "NO", "FI", "DK", "IT", "ES"]
+COUNTRIES = ["TW", "US", "GB", "DE", "JP", "KR", "FR", "CA", "AU", "SG", "NL", "SE", "NO", "FI", "DK", "IT", "ES"]
 
 # 匿名度（仅对 HTTP 有效）
 ANONYMITY = "elite"        # elite / anonymous / transparent / all
@@ -107,15 +108,15 @@ async def check_proxy(session, proxy_str: str, proxy_type: str):
 
 async def validate_proxies(proxies_list, proxy_type="http"):
     valid = []
-    connector = aiohttp.TCPConnector(limit=80, ssl=False)
+    connector = aiohttp.TCPConnector(limit=50, ssl=False)   # 限制并发
     async with aiohttp.ClientSession(connector=connector) as session:
-        tasks = [check_proxy(session, p, proxy_type) for p in proxies_list]
+        tasks = [check_proxy(session, p, proxy_type) for p in proxies_list[:600]]  # 限制总验证数量
         for future in asyncio.as_completed(tasks):
             result = await future
             if result:
                 valid.append(result)
-                if len(valid) % 50 == 0:
-                    logger.info(f"已验证有效 {proxy_type}: {len(valid)} 个")
+                if len(valid) % 30 == 0:
+                    logger.info(f"[{proxy_type}] 已找到有效 {len(valid)} 个")
                 if len(valid) >= MAX_VALID_PER_TYPE:
                     break
     return valid
