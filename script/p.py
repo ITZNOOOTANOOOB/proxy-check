@@ -8,7 +8,7 @@ import os
 
 # ==================== 配置区 ====================
 TEST_URL = "http://httpbin.org/ip"
-TIMEOUT = 8
+TIMEOUT = 10
 MAX_VALID_PER_TYPE = 300   # 每个协议最多保留数量
 CONCURRENT_LIMIT = 50        # 新增并发控制
 
@@ -84,6 +84,10 @@ def fetch_proxies():
         },
         {
             "base": "https://cdn.jsdelivr.net/gh/proxifly/free-proxy-list@main/proxies/protocols/socks5/data.txt",
+            "params": None
+        },
+        {
+            "base": "https://cdn.jsdelivr.net/gh/proxifly/free-proxy-list@main/proxies/countries/TW/data.txt",
             "params": None
         },
         
