@@ -1,0 +1,50 @@
+name: Update proxy list
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'        # 每 4 小时更新一次（推荐）
+    # - cron: '0 */6 * * *'      # 或者每 6 小时
+  workflow_dispatch:             # 允许手动触发
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write           # 必须开启才能自动提交文件
+    
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: install
+        run: |
+          pip install requests
+      
+      - name: Running
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: python proxy_updater.py
+      
+      - name: Commits
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          
+          if git diff --quiet; then
+            echo "没有新代理，跳过提交"
+          else
+            git add proxies.json http.txt socks5.txt
+            git commit -m "chore: 更新代理列表 $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+            echo "已提交新代理列表"
+          fi
