@@ -2,7 +2,7 @@ name: 极致高速更新代理
 
 on:
   schedule:
-    - cron: '0 */3 * * *'     # 每 3 小时（可改成 */6）
+    - cron: '0 */4 * * *'     # 每 4 小时一次
   workflow_dispatch:
 
 jobs:
@@ -11,18 +11,22 @@ jobs:
     permissions:
       contents: write
     
+    # ==================== 全局超时设置 ====================
+    timeout-minutes: 4        # 整个 Job 最长运行 4 分钟，超时自动强制杀死
+
     steps:
       - name: 检出仓库
         uses: actions/checkout@v4
-      
+
       - name: 设置 Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: 运行极致更新脚本
-        run: script proxy_updater.py
-      
+        timeout-minutes: 3      # 这个 Step 最多运行 3 分钟，超时自动停止
+        run: python proxy_updater.py
+
       - name: 提交并推送
         run: |
           git config user.name "github-actions[bot]"
@@ -34,5 +38,5 @@ jobs:
             git add http.txt proxies.json
             git commit -m "chore: 极致更新代理 $(date -u +'%Y-%m-%d %H:%M UTC')"
             git push
-            echo "已成功推送新代理列表"
+            echo "已成功推送"
           fi
