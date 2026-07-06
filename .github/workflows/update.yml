@@ -1,0 +1,38 @@
+name: 极致高速更新代理
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'     # 每 3 小时（可改成 */6）
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+      
+      - name: 设置 Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: 运行极致更新脚本
+        run: script proxy_updater.py
+      
+      - name: 提交并推送
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          if git diff --quiet; then
+            echo "没有新代理"
+          else
+            git add http.txt proxies.json
+            git commit -m "chore: 极致更新代理 $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+            echo "已成功推送新代理列表"
+          fi
